@@ -1,0 +1,28 @@
+__pycache__/
+*.pyc
+*.pyo
+
+# model weights & checkpoints
+*.pth
+*.pt
+*.bin
+*.npz
+models/
+weights/
+
+# data
+data/
+*.jsonl
+*.txt
+!requirements.txt
+
+# logs
+*.log
+search_*/
+sft_*/
+final_bal/
+v16k/
+
+# os
+.DS_Store
+Thumbs.db
