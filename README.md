@@ -1,6 +1,6 @@
 <div align="center">
 
-# TinyLM · 50M
+# StoryWeaver · 50M
 
 **A decoder-only language model implemented entirely from scratch in PyTorch.**
 
@@ -14,7 +14,7 @@ No `nn.Transformer`. No `AutoModel`. Every layer written by hand.
 
 ## What is this?
 
-TinyLM is a 50.23M-parameter GPT-style language model built from zero — byte-level BPE tokenizer, RMSNorm, RoPE, SwiGLU, multi-head self-attention, AdamW, cross-entropy and top-p sampling, all implemented without high-level abstractions.
+StoryWeaver is a 50.23M-parameter GPT-style language model built from zero — byte-level BPE tokenizer, RMSNorm, RoPE, SwiGLU, multi-head self-attention, AdamW, cross-entropy and top-p sampling, all implemented without high-level abstractions.
 
 The point is not scale. The point is that **every tensor is visible**: you can trace a token from the BPE merge table, through six attention blocks, to the logits and the loss, without a single framework black box.
 
@@ -27,7 +27,7 @@ It is trained on a 60/40 mix of [TinyStories](https://huggingface.co/datasets/ro
 | **Story continuation** | `Once upon a time,` | A coherent 3-paragraph children's story |
 | **Instruction following** | `Write a story about a brave little dog.` | A themed story with characters, conflict, resolution |
 
-**Example** (`tinylm-sft-50m`, temperature 0.8):
+**Example** (`storyweaver-sft-50m`, temperature 0.8):
 
 > **Instruction**: Write a story about a brave little dog.
 >
@@ -90,8 +90,8 @@ x = x + SwiGLU(RMSNorm(x))        # SiLU gating, d_ff = 1728
 
 | Name | Steps | Best for | Validation |
 |---|---|---|---|
-| `tinylm-base-50m` | 8,500 | Base model, story continuation | balanced **3.0161** |
-| `tinylm-sft-50m` | 800 (SFT) | Instruction following | SFT val **1.7130** |
+| `storyweaver-base-50m` | 8,500 | Base model, story continuation | balanced **3.0161** |
+| `storyweaver-sft-50m` | 800 (SFT) | Instruction following | SFT val **1.7130** |
 
 Both are full checkpoints (`model_state_dict` + `optimizer_state_dict` + `iteration`).
 
@@ -119,7 +119,7 @@ pip install torch regex tqdm numpy
 
 ```bash
 python generate_run.py --preset v16k \
-  --save_path weights/tinylm-sft-50m.pth \
+  --save_path weights/storyweaver-sft-50m.pth \
   --instruction "Write a story about a brave little dog." \
   --max_length 250 --temperature 0.8
 ```
@@ -128,7 +128,7 @@ python generate_run.py --preset v16k \
 
 ```bash
 python generate_run.py --preset v16k \
-  --save_path weights/tinylm-base-50m.pth \
+  --save_path weights/storyweaver-base-50m.pth \
   --prompt "Once upon a time," \
   --max_length 250 --temperature 0.8
 ```

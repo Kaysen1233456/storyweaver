@@ -1,6 +1,6 @@
 <div align="center">
 
-# TinyLM · 50M
+# StoryWeaver · 50M
 
 **纯 PyTorch 从零实现的 decoder-only 语言模型**
 
@@ -14,7 +14,7 @@
 
 ## 这是什么
 
-TinyLM 是一个 50.23M 参数的 GPT 风格语言模型，从字节级 BPE 词表、RMSNorm、RoPE、SwiGLU、多头自注意力，到 AdamW、交叉熵和 top-p 采样，**全部手写，不调用任何高层封装**。
+StoryWeaver 是一个 50.23M 参数的 GPT 风格语言模型，从字节级 BPE 词表、RMSNorm、RoPE、SwiGLU、多头自注意力，到 AdamW、交叉熵和 top-p 采样，**全部手写，不调用任何高层封装**。
 
 重点不是规模，而是**每个张量都看得见**：你可以追踪一个 token 从 BPE 合并表、穿过 6 个注意力块、到 logits 和 loss 的完整路径，中间没有任何框架黑盒。
 
@@ -27,7 +27,7 @@ TinyLM 是一个 50.23M 参数的 GPT 风格语言模型，从字节级 BPE 词�
 | **故事续写** | `Once upon a time,` | 一段结构完整的三段式儿童故事 |
 | **指令遵循** | `Write a story about a brave little dog.` | 围绕该主题、有角色/冲突/结局的故事 |
 
-**示例**（`tinylm-sft-50m`，temperature 0.8）：
+**示例**（`storyweaver-sft-50m`，temperature 0.8）：
 
 > **指令**：Write a story about a brave little dog.
 >
@@ -97,8 +97,8 @@ x = x + SwiGLU(RMSNorm(x))        # SiLU 门控，d_ff = 1728
 
 | 名称 | 步数 | 适用场景 | 验证指标 |
 |---|---|---|---|
-| `tinylm-base-50m` | 8,500 | 基座模型，故事续写 | balanced **3.0161** |
-| `tinylm-sft-50m` | 800（SFT） | 指令遵循 | SFT val **1.7130** |
+| `storyweaver-base-50m` | 8,500 | 基座模型，故事续写 | balanced **3.0161** |
+| `storyweaver-sft-50m` | 800（SFT） | 指令遵循 | SFT val **1.7130** |
 
 两个都是完整 checkpoint（`model_state_dict` + `optimizer_state_dict` + `iteration`）。
 
@@ -126,7 +126,7 @@ pip install torch regex tqdm numpy
 
 ```bash
 python generate_run.py --preset v16k \
-  --save_path weights/tinylm-sft-50m.pth \
+  --save_path weights/storyweaver-sft-50m.pth \
   --instruction "Write a story about a brave little dog." \
   --max_length 250 --temperature 0.8
 ```
@@ -135,7 +135,7 @@ python generate_run.py --preset v16k \
 
 ```bash
 python generate_run.py --preset v16k \
-  --save_path weights/tinylm-base-50m.pth \
+  --save_path weights/storyweaver-base-50m.pth \
   --prompt "Once upon a time," \
   --max_length 250 --temperature 0.8
 ```
