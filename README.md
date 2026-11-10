@@ -88,12 +88,12 @@ x = x + SwiGLU(RMSNorm(x))        # SiLU gating, d_ff = 1728
 
 ## Checkpoints
 
-| Name | Steps | Best for | Validation |
-|---|---|---|---|
-| `storyweaver-base-50m` | 8,500 | Base model, story continuation | balanced **3.0161** |
-| `storyweaver-sft-50m` | 800 (SFT) | Instruction following | SFT val **1.7130** |
+| Name | Steps | Best for | Validation | Download |
+|---|---|---|---|---|
+| `storyweaver-sft-50m` | 800 (SFT) | Instruction following | SFT val **1.7130** | [v1.0](https://github.com/Kaysen1233456/storyweaver/releases/download/v1.0/storyweaver-sft-50m.pth) |
+| `storyweaver-base-50m` | 8,500 | Base model, story continuation | balanced **3.0161** | reproducible from `train_run.py` |
 
-Both are full checkpoints (`model_state_dict` + `optimizer_state_dict` + `iteration`).
+Full checkpoint format: `model_state_dict` + `optimizer_state_dict` + `iteration`.
 
 ## Evaluation
 

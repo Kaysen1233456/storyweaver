@@ -95,12 +95,12 @@ x = x + SwiGLU(RMSNorm(x))        # SiLU 门控，d_ff = 1728
 
 ## 权重
 
-| 名称 | 步数 | 适用场景 | 验证指标 |
-|---|---|---|---|
-| `storyweaver-base-50m` | 8,500 | 基座模型，故事续写 | balanced **3.0161** |
-| `storyweaver-sft-50m` | 800（SFT） | 指令遵循 | SFT val **1.7130** |
+| 名称 | 步数 | 适用场景 | 验证指标 | 下载 |
+|---|---|---|---|---|
+| `storyweaver-sft-50m` | 800（SFT） | 指令遵循 | SFT val **1.7130** | [v1.0](https://github.com/Kaysen1233456/storyweaver/releases/download/v1.0/storyweaver-sft-50m.pth) |
+| `storyweaver-base-50m` | 8,500 | 基座模型，故事续写 | balanced **3.0161** | 可用 `train_run.py` 复现 |
 
-两个都是完整 checkpoint（`model_state_dict` + `optimizer_state_dict` + `iteration`）。
+完整 checkpoint 格式：`model_state_dict` + `optimizer_state_dict` + `iteration`。
 
 ## 评估
 
