@@ -14,7 +14,7 @@ No `nn.Transformer`. No `AutoModel`. Every layer written by hand.
 
 ## What is this?
 
-StoryWeaver is a 50.23M-parameter GPT-style language model built from zero — byte-level BPE tokenizer, RMSNorm, RoPE, SwiGLU, multi-head self-attention, AdamW, cross-entropy and top-p sampling, all implemented without high-level abstractions.
+StoryWeaver is a 50.23M-parameter GPT-style language model built from zero — byte-initialized BPE tokenizer, RMSNorm, RoPE, SwiGLU, multi-head self-attention, AdamW, cross-entropy and top-p sampling, all implemented without high-level abstractions.
 
 The point is not scale. The point is that **every tensor is visible**: you can trace a token from the BPE merge table, through six attention blocks, to the logits and the loss, without a single framework black box.
 
@@ -39,6 +39,7 @@ It is trained on a 60/40 mix of [TinyStories](https://huggingface.co/datasets/ro
 - 256-token context; generation beyond that degrades
 - No question answering, reasoning, code, or math
 - Writes like a children's story author, because that is what it read
+- The released JSON vocabularies use a legacy, non-binary-safe export: 128–129 non-UTF-8 byte entries collide after replacement-character decoding. Existing checkpoints require these files unchanged; retraining the tokenizer should use a binary-safe serialization.
 
 ## Architecture
 
@@ -101,18 +102,18 @@ Evaluated on **808 fixed validation windows** (same windows every run, so number
 
 | Metric | Base | SFT |
 |---|---|---|
-| TinyStories loss | 1.9403 | 1.9525 |
-| Gutenberg loss (11 books) | 4.6586 | **4.5622** |
-| BPB (TinyStories) | 0.6744 | — |
-| BPB (Gutenberg) | 1.5815 | — |
-| Balanced `0.6·TS + 0.4·GB` | **3.0161** | — |
+| TinyStories loss | 1.9666 | 1.9435 |
+| Gutenberg loss (11 books) | 4.5905 | **4.5773** |
+| BPB (TinyStories) | 0.6835 | — |
+| BPB (Gutenberg) | 1.5585 | — |
+| Balanced `0.6·TS + 0.4·GB` | **3.0161** | 2.9970 |
 
 The 0.6/0.4 weighting mirrors the training corpus ratio, so the metric tracks the actual training distribution rather than an arbitrary average.
 
 ## Quick Start
 
 ```bash
-pip install torch regex tqdm numpy
+pip install -r requirements.txt
 ```
 
 **Instruction mode** (SFT checkpoint):
@@ -139,9 +140,11 @@ python generate_run.py --preset v16k \
 |---|---|
 | Corpus | 41.4M tokens — TinyStories 60% + Gutenberg 40% (11 books, √-weighted allocation, 8% held out per book) |
 | Base training | AdamW, lr 1e-3 → 1e-4, warmup 404, dropout 0.1, weight decay 0.1, β₂ 0.95, 10,116 steps |
-| SFT | 20K instruction–story pairs, 400 steps (0.32 epoch), lr 1e-4 → 1e-5, prompt tokens masked with `-100` |
+| SFT | 20K instruction–story pairs, 800 steps (0.64 epoch), lr 1e-4 → 1e-5, prompt tokens masked with `-100` |
 
-SFT stops at 400 steps deliberately: beyond that point instruction quality improves marginally while base-model capability degrades (catastrophic forgetting). Full curves in [EXPERIMENTS.md](EXPERIMENTS.md).
+The published SFT checkpoint uses the 800-step short-horizon run: it improves instruction loss while preserving the two base-domain metrics. A separate 2,500-step run continued improving SFT loss but degraded Gutenberg loss; because each run's cosine schedule is derived from its own total step count, these are separate training configurations rather than checkpoints on one identical trajectory. Full curves are in [EXPERIMENTS.md](EXPERIMENTS.md).
+
+> **Reproducibility note:** the v1.0 checkpoints and logged metrics were produced before the code audit that fixed gradient clipping and brought the custom AdamW update in line with `torch.optim.AdamW`. Existing checkpoints remain load-compatible, but a fresh run with the current code will not reproduce the historical curve bit-for-bit.
 
 ## Project Structure
 
@@ -151,7 +154,7 @@ SFT stops at 400 steps deliberately: beyond that point instruction quality impro
 ├─ train_run.py                    # base training (balanced eval)
 ├─ sft_run.py                      # instruction tuning
 ├─ generate_run.py                 # sampling (continuation / instruction)
-├─ compare_models.py               # side-by-side generation
+├─ compare_models.py               # cross-checkpoint BPB comparison
 ├─ EXPERIMENTS.md                  # full experiment log
 └─ weights/                        # checkpoints (downloaded separately)
 ```

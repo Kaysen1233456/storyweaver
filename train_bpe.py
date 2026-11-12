@@ -1,10 +1,14 @@
+import json
 import os
+from pathlib import Path
+
 import regex as re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+DATA_DIR = Path(__file__).resolve().parent.parent / 'data'
 
 def get_file(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -20,9 +24,15 @@ def initialize_vocab(special_tokens: list[str]):
 
 def pre_tokenization(text, special_tokens):
     token_counts = defaultdict(int)
-    for special_token in special_tokens:
-        if special_token in text:
-            parts = text.split(special_token)
+
+    # 一次按所有特殊 token 切开(split 丢弃分隔符, 与原逻辑一致)。
+    # 旧实现逐个 special_token 顺序 split, 后一个 split 会在原始 text 上重切,
+    # 覆盖前一个的切分边界; 文本不含任何特殊 token 时 parts 未定义会 NameError。
+    if special_tokens:
+        special_pat = re.compile('|'.join(re.escape(s) for s in special_tokens))
+        parts = special_pat.split(text)
+    else:
+        parts = [text]
 
     def count_token(cur_parts):
         cur_token_counts = defaultdict(int)
@@ -131,3 +141,24 @@ def train_bpe(
                 pbar.update(1)
 
     return vocab, merges
+
+
+def save_tokenizer(vocab, merges, stem):
+    """Save byte tokens losslessly to data/<stem>_{vocab,merges}.*."""
+    if not stem or Path(stem).name != stem:
+        raise ValueError('stem must be a plain filename without directories')
+    vocab_path = DATA_DIR / f'{stem}_vocab.json'
+    merges_path = DATA_DIR / f'{stem}_merges.txt'
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {
+        'format': 'byte-hex-v1',
+        'vocab': {str(k): v.hex() for k, v in vocab.items()},
+    }
+    with vocab_path.open('w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2)
+
+    with merges_path.open('w', encoding='ascii', newline='\n') as f:
+        f.write('# byte-hex-v1\n')
+        for token1, token2 in merges:
+            f.write(f'{token1.hex()}\t{token2.hex()}\n')
+    return vocab_path, merges_path

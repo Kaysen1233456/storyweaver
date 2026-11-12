@@ -112,7 +112,7 @@ def render(runs, log_path):
     if not run['done'] and it < total and spd:
         print(f' 预计   本次训练剩余约 {(total - it) * spd / 60:.1f} 分钟')
     print('-' * 62)
-    print(' 训练 loss 曲线（字符越低 = loss 越小）')
+    print(' 训练 loss 曲线（柱越高 = loss 越小）')
     print(' ' + spark([r[2] for r in rows]))
 
     if run['evals']:

@@ -1,6 +1,6 @@
-# 在魔搭 A10 24G（Linux）上跑这套模型
+# 在魔搭 A10 24G（Linux）上跑这套模型（23M 旧版归档）
 
-> 本包由 Windows 侧打包，解压后可直接训练/推理。代码是项目 8 的运行副本，原版未改动。
+> **历史文档，不能直接用于当前 StoryWeaver 50M 发布版。** 本文记录早期 23.09M / 10K 词表 bundle；当前发布模型是 50.23M / 16K 词表，推理请以 `README.md` 的 `--preset v16k` 命令为准。下面的 bundle 路径和硬件估算只在你仍持有那套旧资产时有效。
 
 ## 0. 包内结构（关键：三个目录必须同级）
 
@@ -80,21 +80,14 @@ python train_run.py \
   --batch_size 64 \
   --context_length 512 \
   --max_iters 20000 \
-  --warmup_iters 500 \
+  --warmup_ratio 0.025 \
   --save_every 2000 \
-  --save_path ../models/model_a10.pth
+  --save_dir ../models \
+  --run_name model_a10 \
+  --resume ../models/model.pth
 ```
 
-**注意**：`train_run.py` 目前**不会自动从已有 checkpoint 续训**，它每次都是随机初始化。要接着 3000 步往下训，需要先手动加载权重——在 `main()` 里 `model = TransformerLM(...)` 之后加三行：
-
-```python
-import torch
-ckpt = torch.load('../models/model.pth', map_location=args.device, weights_only=False)
-model.load_state_dict(ckpt['model_state_dict'])
-print('resumed from iter', ckpt['iteration'])
-```
-
-（优化器状态也可以一起恢复：`optimizer.load_state_dict(ckpt['optimizer_state_dict'])`，但换 batch/ctx 后续训，重置优化器通常更稳。）
+`train_run.py` 已支持 `--resume`，上面的命令会恢复模型和优化器状态。若你有意更换 batch/ctx 并重置优化器，应显式开始新运行并只导入模型权重，而不是假装无缝续训。
 
 **显存参考**：batch 64 × ctx 512 × vocab 10000 的 logits 约 1.31 GB，加上激活和梯度预计 8~11 GB，24G 有余量。想再快可以试 batch 96，但先用 64 跑稳。
 
@@ -127,7 +120,7 @@ python ../8_LLM_From_Scratch_run/encode_corpus_fast.py \
 | 现象 | 原因与处理 |
 |---|---|
 | `FileNotFoundError: ../data/...` | 没在 `llm_bundle/` 这一层运行，或把代码目录单独挪走了 |
-| `torch.load` 报 `weights_only` 相关错误 | 已在本包 `function.py` / `generate_run.py` 里显式传 `weights_only=False` |
+| `torch.load` 报 `weights_only` 相关错误 | 当前脚本使用 `weights_only=True`；只支持张量/字典形式的安全 checkpoint |
 | 加载权重报设备不匹配 | `load_checkpoint` 已加 `map_location`；`generate_run.py` 用 `--device` 指定 |
 | 生成超过 256 个 token 后质量骤降 | ctx 仍是 256；把 `--context_length` 与训练保持一致，或按第 6 节放大 |
 | 显存 OOM | 先降 `--batch_size` 到 32，再降 `--context_length` 到 384 |

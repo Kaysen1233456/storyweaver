@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import math
 
 class RotaryPositionalEmbedding(nn.Module):
     def __init__(self, theta: float, d_k: int, max_seq_len: int, device: torch.device | None = None):
@@ -34,8 +33,6 @@ class RotaryPositionalEmbedding(nn.Module):
         Returns:
             torch.Tensor, RoPEd tensor of the same shape as input
         """
-        seq_len = x.shape[-2]
-
         # Adjust token_positions to be within [0, max_seq_len-1]
         token_positions = torch.clamp(token_positions, 0, self.max_seq_len - 1).long()
 

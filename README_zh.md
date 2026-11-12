@@ -14,7 +14,7 @@
 
 ## 这是什么
 
-StoryWeaver 是一个 50.23M 参数的 GPT 风格语言模型，从字节级 BPE 词表、RMSNorm、RoPE、SwiGLU、多头自注意力，到 AdamW、交叉熵和 top-p 采样，**全部手写，不调用任何高层封装**。
+StoryWeaver 是一个 50.23M 参数的 GPT 风格语言模型，从字节初始化的 BPE 词表、RMSNorm、RoPE、SwiGLU、多头自注意力，到 AdamW、交叉熵和 top-p 采样，**全部手写，不调用任何高层封装**。
 
 重点不是规模，而是**每个张量都看得见**：你可以追踪一个 token 从 BPE 合并表、穿过 6 个注意力块、到 logits 和 loss 的完整路径，中间没有任何框架黑盒。
 
@@ -39,6 +39,7 @@ StoryWeaver 是一个 50.23M 参数的 GPT 风格语言模型，从字节级 BPE
 - 上下文 256 token，超出后生成质量明显下降
 - 不会问答、推理、写代码、做数学
 - 文风像儿童故事作者——因为它读的就是这些
+- 已发布的 JSON 词表沿用旧的非二进制安全导出方式：128–129 个非 UTF-8 字节条目在替换字符解码后发生碰撞。现有 checkpoint 要求词表保持不变；以后重训 tokenizer 应改用二进制安全序列化。
 
 ## 架构
 
@@ -108,18 +109,18 @@ x = x + SwiGLU(RMSNorm(x))        # SiLU 门控，d_ff = 1728
 
 | 指标 | 基座 | SFT |
 |---|---|---|
-| TinyStories loss | 1.9403 | 1.9525 |
-| Gutenberg loss（11 本书平均） | 4.6586 | **4.5622** |
-| BPB（TinyStories） | 0.6744 | — |
-| BPB（Gutenberg） | 1.5815 | — |
-| Balanced `0.6·TS + 0.4·GB` | **3.0161** | — |
+| TinyStories loss | 1.9666 | 1.9435 |
+| Gutenberg loss（11 本书平均） | 4.5905 | **4.5773** |
+| BPB（TinyStories） | 0.6835 | — |
+| BPB（Gutenberg） | 1.5585 | — |
+| Balanced `0.6·TS + 0.4·GB` | **3.0161** | 2.9970 |
 
 0.6/0.4 的权重对应训练语料的配比，所以这个指标反映的是"模型在真实训练分布上的平均表现"，而不是拍脑袋的加权平均。
 
 ## 快速开始
 
 ```bash
-pip install torch regex tqdm numpy
+pip install -r requirements.txt
 ```
 
 **指令模式**（SFT 权重）：
@@ -146,9 +147,11 @@ python generate_run.py --preset v16k \
 |---|---|
 | 语料 | 41.4M tokens —— TinyStories 60% + Gutenberg 40%（11 本书，按 √字符数分配配额，每本留 8% 验证） |
 | 基座训练 | AdamW，lr 1e-3 → 1e-4，warmup 404，dropout 0.1，weight decay 0.1，β₂ 0.95，10,116 步 |
-| 指令微调 | 2 万条"指令—故事"对，400 步（0.32 epoch），lr 1e-4 → 1e-5，prompt 部分 target 置 `-100` |
+| 指令微调 | 2 万条“指令—故事”对，800 步（0.64 epoch），lr 1e-4 → 1e-5，prompt 部分 target 置 `-100` |
 
-SFT 只跑 400 步是刻意的：再往后指令质量提升有限，基座能力却开始退化（灾难性遗忘）。完整曲线见 [EXPERIMENTS.md](EXPERIMENTS.md)。
+发布的 SFT checkpoint 来自 800 步短程训练：指令 loss 改善，同时两个基座域指标都没有退化。另一组 2500 步实验继续降低了 SFT loss，但 Gutenberg loss 明显上升；由于每次运行的 cosine 调度都按各自总步数重新计算，它们是两组不同训练配置，不能当成同一条轨迹上的严格早停对照。完整曲线见 [EXPERIMENTS.md](EXPERIMENTS.md)。
+
+> **复现说明**：v1.0 权重和日志生成于本次代码审计之前；本次审计修复了实际未生效的梯度裁剪，并让手写 AdamW 与 `torch.optim.AdamW` 对齐。旧 checkpoint 仍可加载，但用当前代码重训不会逐位复现历史曲线。
 
 ## 目录结构
 
@@ -158,7 +161,7 @@ SFT 只跑 400 步是刻意的：再往后指令质量提升有限，基座能�
 ├─ train_run.py                    # 基座训练（均衡评估）
 ├─ sft_run.py                      # 指令微调
 ├─ generate_run.py                 # 采样（续写 / 指令）
-├─ compare_models.py               # 多模型对比生成
+├─ compare_models.py               # 跨 checkpoint 的 BPB 对比
 ├─ EXPERIMENTS.md                  # 完整实验记录
 └─ weights/                        # 权重（单独下载）
 ```

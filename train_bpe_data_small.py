@@ -1,14 +1,11 @@
-from train_bpe import train_bpe
-import json
-import psutil
 import os
 import time
 
-input_path = '../data/TinyStoriesV2-GPT4-train_small.txt'
+import psutil
 
-vocab_path = input_path.replace('.txt', '_vocab.json')
-merges_path = input_path.replace('.txt', '_merges.txt')
-split_token = ' $~<split_token>~$ '
+from train_bpe import save_tokenizer, train_bpe
+
+input_path = '../data/TinyStoriesV2-GPT4-train_small.txt'
 
 # Measure time and memory
 process = psutil.Process(os.getpid())
@@ -26,12 +23,6 @@ memory_used_mb = end_memory - start_memory
 print(f"Training time: {time_hours:.4f} hours")
 print(f"Memory used: {memory_used_mb:.2f} MB")
 
-vocab_str = {k : v.decode('utf-8', errors='replace') for k, v in vocab.items()}
-with open(vocab_path, 'w', encoding='utf-8') as f:
-        json.dump(vocab_str, f, ensure_ascii=False, indent=4)
-
-with open(merges_path, 'w', encoding='utf-8') as f:
-    for pair in merges:
-        token1 = pair[0].decode('utf-8', errors='replace')
-        token2 = pair[1].decode('utf-8', errors='replace')
-        f.write(f"{token1}{split_token}{token2}\n")
+vocab_path, merges_path = save_tokenizer(vocab, merges, 'TinyStoriesV2-GPT4-train_small')
+print(f'vocab  -> {vocab_path}')
+print(f'merges -> {merges_path}')

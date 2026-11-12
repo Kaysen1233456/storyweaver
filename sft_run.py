@@ -33,7 +33,7 @@ IGNORE = -100
 PRESETS = {
     'v16k': dict(vocab_size=16000, d_model=640, num_layers=6, num_heads=10, d_ff=1728),
 }
-LEGACY = dict(vocab_size=10000, d_model=512, num_layers=4, num_heads=16, d_ff=1344)
+LEGACY = dict(vocab_size=10000, d_model=512, num_layers=4, num_heads=16, d_ff=1408)
 
 
 def load_sft_dataset(bin_path, meta_path):
@@ -167,7 +167,7 @@ def main():
                           d_model=args.d_model, num_layers=args.num_layers,
                           num_heads=args.num_heads, d_ff=args.d_ff, dropout=args.dropout,
                           device=args.device)
-    ckpt = torch.load(args.base_ckpt, map_location=args.device, weights_only=False)
+    ckpt = torch.load(args.base_ckpt, map_location=args.device, weights_only=True)
     model.load_state_dict(ckpt['model_state_dict'])
     log(f'base loaded, iteration={ckpt.get("iteration")}  '
         f'params={sum(q.numel() for q in model.parameters()) / 1e6:.2f}M')

@@ -18,6 +18,7 @@ class AdamW(Optimizer):
 
         super(AdamW, self).__init__(params, defaults)
 
+    @torch.no_grad()
     def step(self, closure=None):
         """
         Performs a single optimization step.
@@ -28,33 +29,40 @@ class AdamW(Optimizer):
         Returns:
             loss (float, optional): If closure is provided, returns the loss value.
         """
-        loss = None if closure is None else closure()
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
 
         for group in self.param_groups:
+            beta1, beta2 = group['betas']
             for p in group['params']:
                 if p.grad is None:
                     continue
 
-                grad = p.grad.data
+                grad = p.grad
+                if grad.is_sparse:
+                    raise RuntimeError('AdamW does not support sparse gradients')
                 state = self.state[p]
 
                 # Initialize state for the first time
                 if len(state) == 0:
                     state['step'] = 0
-                    state['m'] = torch.zeros_like(p.data)  # First moment
-                    state['v'] = torch.zeros_like(p.data)  # Second moment
-                
+                    state['m'] = torch.zeros_like(p)  # First moment
+                    state['v'] = torch.zeros_like(p)  # Second moment
+
                 m, v = state['m'], state['v']
-                beta1, beta2 = group['betas']
                 state['step'] += 1
                 t = state['step']
 
+                # Decoupled weight decay acts on the parameters before the Adam update
+                p.mul_(1 - group['lr'] * group['weight_decay'])
+
                 m.mul_(beta1).add_(grad, alpha=1 - beta1)
                 v.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
-                alpha_t = group['lr'] * (1 - beta2 ** t) ** 0.5 / (1 - beta1 ** t)
-
-                denom = v.sqrt().add_(group['eps'])
-                p.data.addcdiv_(m, denom, value=-alpha_t)
-                p.data.add_(p.data, alpha=-group['weight_decay'] * group['lr'])
+                bias_correction1 = 1 - beta1 ** t
+                bias_correction2 = 1 - beta2 ** t
+                denom = v.sqrt().div_(bias_correction2 ** 0.5).add_(group['eps'])
+                p.addcdiv_(m, denom, value=-group['lr'] / bias_correction1)
         
         return loss

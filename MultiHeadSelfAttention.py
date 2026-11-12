@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import math
 from RoPE import RotaryPositionalEmbedding
-from function import softmax, scaled_dot_product_attention
+from function import scaled_dot_product_attention
 
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, d_model: int, num_heads: int, theta: float = 10000.0, max_seq_len: int = 1024, device: torch.device | None = None, dtype: torch.dtype | None = None):
@@ -19,8 +19,11 @@ class MultiHeadSelfAttention(nn.Module):
         self.d_model = d_model
         self.num_heads = num_heads
 
-        assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
+        if d_model % num_heads != 0:
+            raise ValueError("d_model must be divisible by num_heads")
         self.d_k = self.d_v = d_model // num_heads
+        if self.d_k % 2 != 0:
+            raise ValueError("head dimension must be even for RoPE")
 
         # Projection layers
         self.w_q = nn.Linear(d_model, d_model, bias=False, device=device, dtype=dtype)
@@ -30,6 +33,11 @@ class MultiHeadSelfAttention(nn.Module):
 
         # RoPE for query and key
         self.rope = RotaryPositionalEmbedding(theta=theta, d_k=self.d_k, max_seq_len=max_seq_len, device=device)
+        self.register_buffer(
+            'causal_mask',
+            torch.tril(torch.ones(max_seq_len, max_seq_len, dtype=torch.bool, device=device)),
+            persistent=False,
+        )
 
         # Initialize weights
         std = math.sqrt(2.0 / (d_model + d_model))
@@ -45,7 +53,7 @@ class MultiHeadSelfAttention(nn.Module):
         Returns:
             torch.Tensor, output tensor of shape (..., sequence_length, d_model)
         """
-        *batch_dims, seq_len, d_model = x.shape
+        *batch_dims, seq_len, _ = x.shape
 
         # Project inputs to Q, K, V
         q = self.w_q(x)  # Shape: (..., seq_len, d_model)
@@ -60,38 +68,19 @@ class MultiHeadSelfAttention(nn.Module):
         if token_positions is None:
             token_positions = torch.arange(seq_len, device=x.device).expand(*batch_dims, -1)
 
-        # Apply RoPE to query and key for each head
-        q_list = []
-        k_list = []
-        
-        for head_idx in range(self.num_heads):
-            q_head = q[..., head_idx, :]  # Shape: (..., seq_len, d_k)
-            k_head = k[..., head_idx, :]  # Shape: (..., seq_len, d_k)
-            
-            q_rope = self.rope(q_head, token_positions)
-            k_rope = self.rope(k_head, token_positions)
-            
-            q_list.append(q_rope)
-            k_list.append(k_rope)
-
-        # Stack back to multi-head format
-        q = torch.stack(q_list, dim=-2)  # Shape: (..., seq_len, num_heads, d_k)
-        k = torch.stack(k_list, dim=-2)  # Shape: (..., seq_len, num_heads, d_k)
+        # Apply RoPE to query and key, broadcast over heads:
+        # positions (..., seq_len) -> (..., seq_len, num_heads), pairing with (..., seq_len, num_heads, d_k)
+        pos = token_positions.unsqueeze(-1).expand(*token_positions.shape, self.num_heads)
+        q = self.rope(q, pos)
+        k = self.rope(k, pos)
 
         # Transpose to (... num_heads, seq_len, d_k) for attention calculation
         q = q.transpose(-3, -2)  # Shape: (..., num_heads, seq_len, d_k)
         k = k.transpose(-3, -2)  # Shape: (..., num_heads, seq_len, d_k)
         v = v.transpose(-3, -2)  # Shape: (..., num_heads, seq_len, d_k)
 
-        # Create causal mask
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=x.device), diagonal=1) == 1
-        causal_mask = causal_mask.logical_not()
-
-        # Expand the mask to match mult-head dimensions
-        if len(batch_dims) > 0:
-            causal_mask = causal_mask.expand(*batch_dims, self.num_heads, -1, -1)
-        else:
-            causal_mask = causal_mask.expand(self.num_heads, -1, -1)
+        # Reuse the precomputed mask; its 2-D shape broadcasts over batch and heads
+        causal_mask = self.causal_mask[:seq_len, :seq_len]
 
         # Apply scaled dot-product attention for each head
         output = scaled_dot_product_attention(q, k, v, causal_mask) # Output shape: (..., num_heads, seq_len, d_k)

@@ -1,3 +1,5 @@
+import math
+
 import torch
 import numpy as np
 
@@ -56,7 +58,11 @@ def cross_entropy(logits: torch.Tensor, targets: torch.Tensor, ignore_index: int
     # Compute log-softmax directly to avoid separate exp and log
     log_probs = shifted_logits - torch.logsumexp(shifted_logits, dim=vocab_dim, keepdim=True)
 
-    loss = -log_probs.gather(dim=vocab_dim, index=targets.clamp(min=0).unsqueeze(vocab_dim)).squeeze(vocab_dim)
+    if ignore_index is not None:
+        safe_targets = targets.masked_fill(targets == ignore_index, 0)
+    else:
+        safe_targets = targets
+    loss = -log_probs.gather(dim=vocab_dim, index=safe_targets.unsqueeze(vocab_dim)).squeeze(vocab_dim)
     if ignore_index is not None:
         mask = (targets != ignore_index).to(loss.dtype)
         denom = mask.sum()
@@ -79,36 +85,43 @@ def get_learning_rate(t: int, alpha_max: float, alpha_min: float, T_w: int, T_c:
     Returns:
         float: The learning rate αt for the current step t.
     """
+    if T_w <= 0:
+        raise ValueError("T_w must be positive")
+    if T_c < T_w:
+        raise ValueError("T_c must be greater than or equal to T_w")
     if t < T_w: # Warm-up
         return (t / T_w) * alpha_max
-    elif T_w <= t <= T_c: # Cosine annealing
-        return alpha_min + 0.5 * (1 + torch.cos(torch.tensor((t - T_w) / (T_c - T_w) * torch.pi, dtype=torch.float64))) * (alpha_max - alpha_min)
-    elif t > T_c: # Post-annealing
+    elif t == T_w:
+        return alpha_max
+    elif T_w < t <= T_c: # Cosine annealing
+        return alpha_min + 0.5 * (1 + math.cos((t - T_w) / (T_c - T_w) * math.pi)) * (alpha_max - alpha_min)
+    else: # Post-annealing
         return alpha_min
 
 def clip_gradient(parameters, max_norm):
-    total_norm = 0
-    for p in parameters:
-        if p.grad is not None:
-            total_norm += p.grad.pow(2).sum()
-    total_norm = total_norm.sqrt().item()
+    params = [p for p in parameters if p.grad is not None]
+    if not params:
+        return 0.0
+    total_norm = sum(p.grad.pow(2).sum() for p in params).sqrt().item()
     clip_coef = max_norm / (total_norm + 1e-6)
     if clip_coef < 1:
-        for p in parameters:
-            if p.grad is not None:
-                p.grad.data.mul_(clip_coef)
+        for p in params:
+            p.grad.mul_(clip_coef)
+    return total_norm
 
 def data_loader(dataset, batch_size, context_length, device):
     n = len(dataset)
+    if n <= context_length:
+        raise ValueError(f"dataset needs more than {context_length} tokens, got {n}")
     indices = np.random.randint(0, n - context_length, size=batch_size)
 
-    inputs = torch.zeros((batch_size, context_length), dtype=torch.long, device=device)
-    outputs = torch.zeros((batch_size, context_length), dtype=torch.long, device=device)
+    # Gather all windows in one numpy fancy-index, then a single H2D transfer
+    offsets = np.arange(context_length + 1)
+    windows = dataset[indices[:, None] + offsets]  # (batch_size, context_length + 1)
 
-    for idx, indice  in enumerate(indices):
-        inputs[idx] = torch.from_numpy(dataset[indice : indice + context_length])
-        outputs[idx] = torch.from_numpy(dataset[indice + 1 : indice + context_length + 1])
-    
+    inputs = torch.from_numpy(windows[:, :-1]).to(device)
+    outputs = torch.from_numpy(windows[:, 1:]).to(device)
+
     return inputs, outputs
 
 def save_checkpoint(model, optimizer, iteration, out):
@@ -121,7 +134,7 @@ def save_checkpoint(model, optimizer, iteration, out):
     torch.save(state_dict, out)
 
 def load_checkpoint(src, model, optimizer, map_location='cpu'):
-    state_dict = torch.load(src, map_location=map_location, weights_only=False)
+    state_dict = torch.load(src, map_location=map_location, weights_only=True)
 
     model.load_state_dict(state_dict['model_state_dict'])
     optimizer.load_state_dict(state_dict['optimizer_state_dict'])
@@ -130,6 +143,10 @@ def load_checkpoint(src, model, optimizer, map_location='cpu'):
     return iteration
 
 def nucleus_sampling_decoder(model, tokenizer, prompt, max_length=100, temperature=1.0, p=0.9, device='cuda:0'):
+    if temperature <= 0:
+        raise ValueError("temperature must be positive")
+    if not 0 < p <= 1:
+        raise ValueError("p must be in (0, 1]")
     model.eval()
 
     prompt_tokens = tokenizer.encode(prompt)

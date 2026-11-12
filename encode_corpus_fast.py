@@ -11,21 +11,23 @@
 import argparse
 import time
 from array import array
+from pathlib import Path
 
 import regex as re
 from tokenizer import Tokenizer
 
 SPECIAL = '<|endoftext|>'
 SPLIT_TOKEN = ' $~<split_token>~$ '
+DATA_DIR = Path(__file__).resolve().parent.parent / 'data'
 
-DEFAULT_VOCAB = '../data/TinyStoriesV2-GPT4-train_small_vocab.json'
-DEFAULT_MERGES = '../data/TinyStoriesV2-GPT4-train_small_merges.txt'
+DEFAULT_VOCAB = DATA_DIR / 'TinyStoriesV2-GPT4-train_small_vocab.json'
+DEFAULT_MERGES = DATA_DIR / 'TinyStoriesV2-GPT4-train_small_merges.txt'
 
 TASKS = {
-    'valid': ('../data/TinyStoriesV2-GPT4-valid.txt',
-              '../data/TinyStoriesV2-GPT4-valid_tokens'),
-    'train': ('../data/TinyStoriesV2-GPT4-train_small.txt',
-              '../data/TinyStoriesV2-GPT4-train_small_tokens'),
+    'valid': (DATA_DIR / 'TinyStoriesV2-GPT4-valid.txt',
+              DATA_DIR / 'TinyStoriesV2-GPT4-valid_tokens'),
+    'train': (DATA_DIR / 'TinyStoriesV2-GPT4-train_small.txt',
+              DATA_DIR / 'TinyStoriesV2-GPT4-train_small_tokens'),
 }
 
 
@@ -36,7 +38,9 @@ def build_encoder(vocab_path, merges_path):
         special_tokens=[SPECIAL],
         split_token=SPLIT_TOKEN,
     )
-    rank = {merged: i for i, merged in enumerate(tok.merges)}
+    rank = {}
+    for i, merged in enumerate(tok.merges):
+        rank.setdefault(merged, i)
     unk_id = tok.token2id.get(b'[UNK]', 0)
     eot_id = tok.token2id[SPECIAL.encode('utf-8')]
     pat = tok.PAT
@@ -48,7 +52,7 @@ def build_encoder(vocab_path, merges_path):
             return cached
         parts = [bytes([b]) for b in word_bytes]
         while len(parts) > 1:
-            best_i, best_rank = -1, len(rank) + 1
+            best_i, best_rank = -1, len(tok.merges) + 1
             for i in range(len(parts) - 1):
                 r = rank.get(parts[i] + parts[i + 1])
                 if r is not None and r < best_rank:
@@ -66,35 +70,44 @@ def build_encoder(vocab_path, merges_path):
 
 def encode_file(input_path, out_stem, encode_word, eot_id, pat, report_every=10000):
     started = time.time()
-    with open(input_path, 'r', encoding='utf-8') as f:
+    input_path, out_stem = Path(input_path), Path(out_stem)
+    with input_path.open('r', encoding='utf-8') as f:
         data = f.read()
     parts = data.split(SPECIAL)
-    ids = array('i')
+    token_buf = array('i')
     text_buf = []
 
-    with open(out_stem + '.txt', 'w', encoding='utf-8') as ftxt, \
-            open(out_stem + '.bin', 'wb') as fbin:
+    def flush(ftxt, fbin):
+        if text_buf:
+            ftxt.write('\n'.join(text_buf) + '\n')
+            text_buf.clear()
+        if token_buf:
+            token_buf.tofile(fbin)
+            del token_buf[:]
+
+    n_ids = 0
+    with out_stem.with_suffix('.txt').open('w', encoding='utf-8') as ftxt, \
+            out_stem.with_suffix('.bin').open('wb') as fbin:
         for idx, part in enumerate(parts):
             for match in re.finditer(pat, part):
                 for tid in encode_word(match.group().encode('utf-8')):
-                    ids.append(tid)
+                    token_buf.append(tid)
                     text_buf.append(str(tid))
-                    if len(text_buf) >= 200000:
-                        ftxt.write('\n'.join(text_buf) + '\n')
-                        text_buf.clear()
+                    n_ids += 1
+                    if len(token_buf) >= 200000:
+                        flush(ftxt, fbin)
             if idx < len(parts) - 1:
-                ids.append(eot_id)
+                token_buf.append(eot_id)
                 text_buf.append(str(eot_id))
+                n_ids += 1
             if report_every and idx % report_every == 0:
-                print(f'  [{out_stem}] {idx}/{len(parts)} stories, {len(ids)} tokens, '
+                print(f'  [{out_stem}] {idx}/{len(parts)} stories, {n_ids} tokens, '
                       f'{time.time() - started:.1f}s', flush=True)
-        if text_buf:
-            ftxt.write('\n'.join(text_buf) + '\n')
-        ids.tofile(fbin)
+        flush(ftxt, fbin)
 
-    print(f'DONE {out_stem}: {len(ids)} tokens, '
+    print(f'DONE {out_stem}: {n_ids} tokens, '
           f'{time.time() - started:.1f}s -> .txt / .bin', flush=True)
-    return len(ids)
+    return n_ids
 
 
 def main():
@@ -110,8 +123,9 @@ def main():
     print(f'vocab loaded: {n_merges} merges, eot_id={eot_id}', flush=True)
 
     if args.input:
-        out_stem = args.out_stem or args.input.rsplit('.txt', 1)[0] + '_tokens'
-        encode_file(args.input, out_stem, encode_word, eot_id, pat)
+        input_path = Path(args.input).resolve()
+        out_stem = Path(args.out_stem).resolve() if args.out_stem else input_path.with_suffix('').with_name(input_path.stem + '_tokens')
+        encode_file(input_path, out_stem, encode_word, eot_id, pat)
         return
 
     keys = ['valid', 'train'] if args.only == 'both' else [args.only]

@@ -117,7 +117,7 @@ def main():
     p.add_argument('--d_model', type=int, default=512)
     p.add_argument('--num_layers', type=int, default=4)
     p.add_argument('--num_heads', type=int, default=16)
-    p.add_argument('--d_ff', type=int, default=1344)
+    p.add_argument('--d_ff', type=int, default=1408)
     p.add_argument('--dropout', type=float, default=0.0)
     p.add_argument('--learning_rate', type=float, default=3e-4)
     p.add_argument('--min_lr_ratio', type=float, default=0.1)
@@ -203,7 +203,7 @@ def main():
 
     start_iter = 0
     if args.resume:
-        ckpt = torch.load(args.resume, map_location=args.device, weights_only=False)
+        ckpt = torch.load(args.resume, map_location=args.device, weights_only=True)
         model.load_state_dict(ckpt['model_state_dict'])
         start_iter = int(ckpt.get('iteration', 0))
         if 'optimizer_state_dict' in ckpt:
@@ -271,6 +271,11 @@ def main():
 
     log('=' * 62)
     if status == 'ok':
+        if last is None:
+            # resume 到已完成步数时循环体一次都没跑, 补一次最终评估再汇总
+            _, lines, last = run_eval(total_steps)
+            for ln in lines:
+                log(ln)
         if windows:
             # 固定窗口评估是确定的: 最后一步的评估就是最终结果, 不需要重复算
             final = last

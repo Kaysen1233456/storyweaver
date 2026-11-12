@@ -17,32 +17,32 @@ import urllib.request
 OUT_DIR = '../data/sft_raw'
 MIRROR = 'https://www.gutenberg.org/cache/epub/{eid}/pg{eid}.txt'
 
-# 精选公版童话/短篇书集（ebook id -> 描述）
-# 分级: A=儿童童话/寓言(风格匹配), 只用 A 级构建 SFT 样本
+# 精选公版文本（ebook id -> 分级、标题）
+# 分级: A=可用于儿童故事 SFT；B=只用于混合预训练或人工复核
 CATALOG = {
-    2591:  ("A", "Grimm's Fairy Tales"),
-    19033: ("A", "Grimm's Fairy Tales (另一版本)"),
-    514:   ("A", "Fairy Tales (澳大利亚传说)"),
-    1597:  ("A", "Andersen's Fairy Tales (H.B. Paull 译本)"),
-    22015: ("A", "Andersen's Fairy Tales (另一版本)"),
-    22016: ("A", "Andersen 后续集"),
-    21:    ("A", "Aesop's Fables (Townsend 译本)"),
-    113:   ("A", "The Secret Garden (儿童文学)"),
-    17325: ("A", "The Happy Prince and Other Tales (Oscar Wilde)"),
-    9066:  ("A", "A House of Pomegranates (Oscar Wilde)"),
-    14774: ("A", "Mother Goose 童谣与故事"),
-    1998:  ("A", "Aesop's Fables (另一个译本)"),
-    2554:  ("B", "The Wife, and Other Stories (Chekhov)"),
-    13415: ("B", "Short Story Collection (多作者)"),
-    6897:  ("B", "Short Story Collection Vol."),
-    19037: ("B", "短篇集"),
-    30127: ("B", "短篇集 Vol."),
-    29000: ("B", "短篇集"),
+    2591:  ("A", "Grimms' Fairy Tales"),
+    19033: ("A", "Alice's Adventures in Wonderland (adapted edition)"),
+    514:   ("A", "Little Women"),
+    1597:  ("A", "Andersen's Fairy Tales (H.B. Paull translation)"),
+    21:    ("A", "Aesop's Fables (Townsend translation)"),
+    113:   ("A", "The Secret Garden"),
+    2554:  ("B", "Crime and Punishment"),
+    13415: ("B", "The Tales of Chekhov, Volume 3"),
+    6897:  ("B", "The Little Savage"),
+    30127: ("B", "Tales from Dickens"),
+    29000: ("B", "The Macdermots of Ballycloran"),
+    # 已下载但不用于当前英文语料：非英文、非故事或领域不匹配
+    22015: ("B", "As Minas de Salomao (Portuguese)"),
+    22016: ("B", "Vie de Madame Elisabeth de France (French)"),
+    17325: ("B", "History of Egypt, Chaldea, Syria, Babylonia, and Assyria"),
+    9066:  ("B", "German-language text"),
+    14774: ("B", "Finnish-language poetry collection"),
+    1998:  ("B", "Thus Spake Zarathustra"),
+    19037: ("B", "ASCE Transactions, Paper No. 1158"),
 }
 
 HEADER_PAT = re.compile(r'\*\*\*\s*START OF (?:THE|THIS) PROJECT GUTENBERG EBOOK.*?\*\*\*', re.IGNORECASE | re.DOTALL)
 FOOTER_PAT = re.compile(r'\*\*\*\s*END OF (?:THE|THIS) PROJECT GUTENBERG EBOOK.*', re.IGNORECASE | re.DOTALL)
-TITLE_LINE = re.compile(r'^\s*(?:THE\s+)?(?:[A-Z][\w\'’-]+\s+){0,4}[A-Z][\w\'’-]+\s*$')
 
 
 def fetch(eid, timeout=60):
@@ -90,7 +90,12 @@ def main():
     for eid, (grade, desc) in items:
         out_path = os.path.join(args.out_dir, f'pg{eid}.txt')
         if os.path.exists(out_path):
-            print(f'[skip] pg{eid} 已存在')
+            with open(out_path, encoding='utf-8', errors='replace') as f:
+                chars = len(f.read())
+            manifest[str(eid)] = {
+                'grade': grade, 'desc': desc, 'chars': chars, 'file': f'pg{eid}.txt'
+            }
+            print(f'[skip] pg{eid} 已存在（刷新 manifest）')
             ok += 1
             continue
         try:

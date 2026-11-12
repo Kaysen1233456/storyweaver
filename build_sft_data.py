@@ -81,7 +81,7 @@ def clean_text(text):
 
 
 def split_stories(text):
-    """按全大写标题行切块; 块太少的书退化为按空行段落聚合。"""
+    """按全大写标题行切块；识别不到标题时保留整书，交给 chunk_story 切句。"""
     blocks, cur = [], []
     for ln in text.splitlines():
         if STORY_HEAD.match(ln) and cur:
@@ -91,9 +91,6 @@ def split_stories(text):
     if cur:
         blocks.append('\n'.join(cur).strip())
     return [b for b in blocks if len(b) > 400]  # 太短的丢弃
-
-
-SENT_END = re.compile(r'(?<=[.!?”"])?\s+(?=[A-Z])')
 
 
 def split_sentences(story):
@@ -177,10 +174,11 @@ def main():
     samples = []   # (instruction, story)
     for path in files:
         with open(path, encoding='utf-8') as f:
-            text = f.read()
-        text = normalize(clean_text(text))
+            text = normalize(f.read())
+        # 先保留换行识别故事标题，再逐块清洗成连续文本
         stories = split_stories(text)
         for st in stories:
+            st = clean_text(st)
             for chunk in chunk_story(st, args.max_story_chars):
                 if len(chunk) < 200:
                     continue
@@ -188,6 +186,8 @@ def main():
 
     rng.shuffle(samples)
     samples = samples[: args.max_samples]
+    if len(samples) < 2:
+        raise SystemExit('可用样本不足 2 条，请检查 raw_dir、manifest 分级与清洗规则')
     print(f'samples: {len(samples)}')
 
     # ShareGPT 人可读输出
@@ -254,8 +254,9 @@ def main():
     dump(train, 'sft_train')
     dump(val, 'sft_val')
 
-    avg_p = sum(len(encode(i)) for i, _ in samples[:200]) / 200
-    print(f'avg prompt tokens(前200条): {avg_p:.1f}')
+    preview = samples[:200]
+    avg_p = sum(len(encode(i)) for i, _ in preview) / len(preview)
+    print(f'avg prompt tokens(前{len(preview)}条): {avg_p:.1f}')
     print('DONE')
 
 

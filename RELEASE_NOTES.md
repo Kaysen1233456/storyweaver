@@ -4,16 +4,18 @@ A 50.23M-parameter decoder-only language model implemented entirely from scratch
 
 - 6 layers, d_model 640, 10 heads, 16K byte-level BPE vocabulary
 - Trained on 41.4M tokens (TinyStories 60% + Gutenberg 40%)
-- Balanced evaluation on 808 fixed windows: **3.0161** (TS 1.9403 / GB 4.6586)
+- Balanced evaluation on 808 fixed windows: **3.0161** (TS 1.9666 / GB 4.5905)
 
 ### Checkpoints
 
 | File | Steps | Best for | Metric |
 |---|---|---|---|
-| `storyweaver-base-50m.pth` | 8,500 | Base model — story continuation, starting point for SFT | balanced **3.0161** (TS 1.9403 / GB 4.6586) |
+| `storyweaver-base-50m.pth` | 8,500 | Base model — story continuation, starting point for SFT | balanced **3.0161** (TS 1.9666 / GB 4.5905) |
 | `storyweaver-sft-50m.pth` | 800 (SFT) | Instruction following | SFT val **1.7130**, base preserved (GB 4.5773 vs 4.5905 before) |
 
 Both are full checkpoints: `model_state_dict` + `optimizer_state_dict` + `iteration`. Load with `--preset v16k`.
+
+These metrics describe the released checkpoints. The repository's later code audit fixed gradient clipping and standardized the custom AdamW update; old weights remain load-compatible, but fresh training curves are not bitwise comparable to v1.0.
 
 ### Quick start
 

@@ -11,12 +11,11 @@
 """
 import argparse
 import glob
-import json
 import os
 import random
 import re
 
-import regex as re2  # noqa: F401 (保留与 tokenizer 一致的依赖)
+import regex as re2
 
 SPECIAL = '<|endoftext|>'
 RAW_DIR = '../data/sft_raw'

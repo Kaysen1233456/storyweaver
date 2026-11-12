@@ -38,7 +38,7 @@ ts_eval = [s.strip() for s in ts_all if len(s.strip()) > 200][:300]
 MODELS = [
     ('23M 旧架构(10K词表, 3 epoch)', '../models/model_best.pth',
      '../data/mixed_vocab.json', '../data/mixed_merges.txt',
-     dict(vocab_size=10000, d_model=512, num_layers=4, num_heads=16, d_ff=1344)),
+     dict(vocab_size=10000, d_model=512, num_layers=4, num_heads=16, d_ff=1408)),
     ('50M 旧语料(16K词表, 1 epoch)', '../models/v16k/model_best.pth',
      '../data/mixed_v16k_vocab.json', '../data/mixed_v16k_merges.txt',
      dict(vocab_size=16000, d_model=640, num_layers=6, num_heads=10, d_ff=1728)),
@@ -67,6 +67,9 @@ def eval_texts(model, enc, id_bytes, texts):
 
 results = {}
 for name, ckpt, vocab, merges, arch in MODELS:
+    if not os.path.exists(ckpt):
+        print(f'[skip] {name}: 找不到 {ckpt}')
+        continue
     ew, eot, pat, _ = build_encoder(vocab, merges)
     patc = re.compile(pat)
     enc = lambda s, ew=ew, patc=patc: [t for m in patc.finditer(s) for t in ew(m.group().encode('utf-8'))]
@@ -76,7 +79,7 @@ for name, ckpt, vocab, merges, arch in MODELS:
     id_bytes = {v: len(k) for k, v in tok.token2id.items()}
 
     model = TransformerLM(context_length=256, device=device, **arch)
-    model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=False)['model_state_dict'])
+    model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True)['model_state_dict'])
     model.eval()
 
     gb_b, gb_t = eval_texts(model, enc, id_bytes, gb_hold)
@@ -88,7 +91,10 @@ for name, ckpt, vocab, merges, arch in MODELS:
     del model
     torch.cuda.empty_cache()
 
-(o_gb, o_ts), (n_gb, n_ts) = results.values()
-print()
-print(f'Gutenberg 每字节 loss 变化: {100 * (n_gb - o_gb) / o_gb:+.1f}%')
-print(f'TinyStory 每字节 loss 变化: {100 * (n_ts - o_ts) / o_ts:+.1f}%')
+names = list(results)
+if len(names) >= 2:
+    (o_gb, o_ts), (n_gb, n_ts) = results[names[0]], results[names[-1]]
+    print()
+    print(f'{names[0]} -> {names[-1]}')
+    print(f'Gutenberg 每字节 loss 变化: {100 * (n_gb - o_gb) / o_gb:+.1f}%')
+    print(f'TinyStory 每字节 loss 变化: {100 * (n_ts - o_ts) / o_ts:+.1f}%')

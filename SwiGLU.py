@@ -3,18 +3,22 @@ import torch.nn as nn
 import math
 
 class SwiGLU(nn.Module):
-    def __init__(self, d_model: int, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    def __init__(self, d_model: int, d_ff: int | None = None, device: torch.device | None = None, dtype: torch.dtype | None = None):
         """
         Args:
             d_model: int, dimensionality of the feedforward input and output
+            d_ff: int | None, inner hidden size; None derives it from d_model
+                (8/3 * d_model rounded up to a multiple of 64)
             device: torch.device | None, device to store the parameters on
             dtype: torch.dtype | None, data type of the parameters
         """
         super().__init__()
         self.d_model = d_model
 
-        d_ff_base = int((8 / 3) * d_model)
-        self.d_ff = ((d_ff_base + 63) // 64) * 64
+        if d_ff is None:
+            d_ff_base = int((8 / 3) * d_model)
+            d_ff = ((d_ff_base + 63) // 64) * 64
+        self.d_ff = d_ff
 
         std_w = math.sqrt(2.0 / (self.d_ff + d_model))
 

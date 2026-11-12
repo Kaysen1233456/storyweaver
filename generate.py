@@ -1,11 +1,8 @@
 import argparse
-import numpy as np
-import torch
-import torch.nn as nn
 from AdamW import AdamW
 from TransformerLM import TransformerLM
 from tokenizer import Tokenizer
-from function import data_loader, cross_entropy as loss_fn, nucleus_sampling_decoder, load_checkpoint
+from function import nucleus_sampling_decoder, load_checkpoint
 
 tokenizer = Tokenizer.from_files(
     vocab_filepath="../data/TinyStoriesV2-GPT4-valid_vocab.json",
@@ -24,7 +21,7 @@ def train_loop():
     parser.add_argument('--d_model', type=int, default=512)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--num_heads', type=int, default=16)
-    parser.add_argument('--d_ff', type=int, default=1344)
+    parser.add_argument('--d_ff', type=int, default=1408)
 
     parser.add_argument('--learning_rate', type=float, default=0.001)
     parser.add_argument('--epochs', type=int, default=1)
@@ -35,7 +32,7 @@ def train_loop():
     parser.add_argument('--log_file', type=str, default='../data/training_log.txt')
 
     parser.add_argument('--save_path', type=str, default='../models/model.pth')
-    parser.add_argument('--temperature', type=int, default=1.0)
+    parser.add_argument('--temperature', type=float, default=1.0)
     parser.add_argument('--device', type=str, default='cuda:5', help='Device to use (cpu or cuda:0)')
     args = parser.parse_args()
 

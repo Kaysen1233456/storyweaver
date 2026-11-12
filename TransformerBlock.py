@@ -28,15 +28,10 @@ class TransformerBlock(nn.Module):
 
         # Second sublayer: SwiGLU with RMSNorm
         self.ln2 = RMSNorm(d_model, device=device, dtype=dtype)
-        self.ffn = SwiGLU(d_model, device=device, dtype=dtype)  # d_ff is internal to SwiGLU
+        self.ffn = SwiGLU(d_model, d_ff=d_ff, device=device, dtype=dtype)
 
         # Residual dropout (no parameters, so old checkpoints still load)
         self.drop = nn.Dropout(dropout)
-
-        # Initialize RMSNorm gain parameters
-        std = 1.0
-        nn.init.trunc_normal_(self.ln1.g, mean=0.0, std=std, a=-3.0, b=3.0)
-        nn.init.trunc_normal_(self.ln2.g, mean=0.0, std=std, a=-3.0, b=3.0)
 
 
     def forward(self, x: torch.Tensor, token_positions: torch.Tensor | None = None) -> torch.Tensor:

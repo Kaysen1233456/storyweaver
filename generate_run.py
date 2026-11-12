@@ -23,7 +23,7 @@ PRESETS = {
     'v16k': dict(vocab_size=16000, d_model=640, num_layers=6, num_heads=10, d_ff=1728,
                  vocab='../data/mixed_v16k_vocab.json', merges='../data/mixed_v16k_merges.txt'),
 }
-LEGACY = dict(vocab_size=10000, d_model=512, num_layers=4, num_heads=16, d_ff=1344,
+LEGACY = dict(vocab_size=10000, d_model=512, num_layers=4, num_heads=16, d_ff=1408,
               vocab='../data/TinyStoriesV2-GPT4-train_small_vocab.json',
               merges='../data/TinyStoriesV2-GPT4-train_small_merges.txt')
 
@@ -67,7 +67,7 @@ def main():
     model = TransformerLM(vocab_size=args.vocab_size, context_length=args.context_length,
                           d_model=args.d_model, num_layers=args.num_layers,
                           num_heads=args.num_heads, d_ff=args.d_ff, device=args.device)
-    ckpt = torch.load(args.save_path, map_location=args.device, weights_only=False)
+    ckpt = torch.load(args.save_path, map_location=args.device, weights_only=True)
     if isinstance(ckpt, dict) and 'model_state_dict' in ckpt:
         model.load_state_dict(ckpt['model_state_dict'])
         print(f"[load] full checkpoint, iteration={ckpt.get('iteration')}")

@@ -1,13 +1,10 @@
 import argparse
 import numpy as np
 import torch
-import torch.nn as nn
 from AdamW import AdamW
 from TransformerLM import TransformerLM
-from tokenizer import Tokenizer
 from function import data_loader, cross_entropy as loss_fn, save_checkpoint
 import logging
-import time
 from tqdm import tqdm
 
 def setup_logging(log_file):
@@ -35,7 +32,7 @@ def train_loop():
     parser.add_argument('--d_model', type=int, default=512)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--num_heads', type=int, default=16)
-    parser.add_argument('--d_ff', type=int, default=1344)
+    parser.add_argument('--d_ff', type=int, default=1408)
 
     parser.add_argument('--learning_rate', type=float, default=0.0003)
     parser.add_argument('--epochs', type=int, default=1)
@@ -51,7 +48,6 @@ def train_loop():
 
     # Setup logging
     setup_logging(args.log_file)
-    start_time = time.time()
     logging.info("\n\n\n****************Training started****************")
     logging.info("Hyperparameters:")
     for arg, value in vars(args).items():
