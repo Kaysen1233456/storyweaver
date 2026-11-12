@@ -18,7 +18,20 @@ StoryWeaver 是一个 50.23M 参数的 GPT 风格语言模型，从字节初始�
 
 重点不是规模，而是**每个张量都看得见**：你可以追踪一个 token 从 BPE 合并表、穿过 6 个注意力块、到 logits 和 loss 的完整路径，中间没有任何框架黑盒。
 
-训练语料是 [TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) 与 [Project Gutenberg](https://www.gutenberg.org/) 按 60/40 混合，之后用 2 万条合成的"指令—故事"对做指令微调。
+训练语料是 [TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) 与 [Project Gutenberg](https://www.gutenberg.org/) 按 60/40 混合，之后用 2 万条合成的“指令—故事”对做指令微调。
+
+## 代码审计更新（2026 年 11 月）
+
+当前 `main` 分支已经合入一次完整项目维护：
+
+- 修复梯度裁剪只统计、不实际缩放的问题；
+- 让手写 AdamW 与 `torch.optim.AdamW` 对齐，并把 `d_ff` 真正接入 SwiGLU；
+- 将 RoPE 跨 attention head 向量化，因果 mask 改为预计算复用；
+- 加速 BPE 查找，同时保持已发布 checkpoint 的 token ID 兼容；
+- 为今后重训增加无损词表序列化，并改用安全 checkpoint 加载；
+- 修正语料清单、SFT 分段、评估表格和复现边界。
+
+v1.0 已发布权重仍可直接加载。历史指标边界和修正后的实验分析见 [EXPERIMENTS.md](EXPERIMENTS.md)。
 
 ## 能力
 
@@ -69,7 +82,7 @@ x = x + SwiGLU(RMSNorm(x))        # SiLU 门控，d_ff = 1728
 | `RMSNorm.py` | 不减均值、可学习增益、FP32 计算 | Llama `RMSNorm` |
 | `RoPE.py` | 交错式旋转位置编码，预计算 sin/cos buffer | Llama rotary embedding |
 | `SwiGLU.py` | `w2(silu(w1(x)) * w3(x))` | Llama MLP |
-| `MultiHeadSelfAttention.py` | einsum 注意力 + `torch.triu` 因果掩码 | `F.scaled_dot_product_attention` |
+| `MultiHeadSelfAttention.py` | einsum 注意力 + 预计算因果掩码 | `F.scaled_dot_product_attention` |
 | `AdamW.py` | 解耦权重衰减、偏差修正 | `torch.optim.AdamW` |
 | `function.py` | 交叉熵、梯度裁剪、warmup+cosine、top-p 采样 | — |
 

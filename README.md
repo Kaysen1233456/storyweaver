@@ -20,6 +20,19 @@ The point is not scale. The point is that **every tensor is visible**: you can t
 
 It is trained on a 60/40 mix of [TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) and [Project Gutenberg](https://www.gutenberg.org/), then instruction-tuned on 20K synthetic instruction–story pairs.
 
+## Code audit update (November 2026)
+
+The current `main` branch includes a full-project maintenance pass:
+
+- fixed gradient clipping that previously consumed the parameter generator without applying the clip;
+- aligned the handwritten AdamW update with `torch.optim.AdamW` and wired `d_ff` into SwiGLU;
+- vectorized RoPE across attention heads and reused a precomputed causal mask;
+- accelerated BPE lookup while preserving released-checkpoint token IDs;
+- added binary-safe tokenizer serialization for future retraining and safe checkpoint loading;
+- corrected corpus metadata, SFT splitting, evaluation tables, and reproducibility notes.
+
+Released v1.0 checkpoints remain load-compatible. See [EXPERIMENTS.md](EXPERIMENTS.md) for the historical-metric boundary and corrected analysis.
+
 ## Capabilities
 
 | Capability | Input | Output |
@@ -69,7 +82,7 @@ x = x + SwiGLU(RMSNorm(x))        # SiLU gating, d_ff = 1728
 | `RMSNorm.py` | No mean subtraction, learnable gain, FP32 compute | Llama `RMSNorm` |
 | `RoPE.py` | Interleaved rotary, precomputed sin/cos buffers | Llama rotary embedding |
 | `SwiGLU.py` | `w2(silu(w1(x)) * w3(x))` | Llama MLP |
-| `MultiHeadSelfAttention.py` | einsum attention + `torch.triu` causal mask | `F.scaled_dot_product_attention` |
+| `MultiHeadSelfAttention.py` | einsum attention + precomputed causal mask | `F.scaled_dot_product_attention` |
 | `AdamW.py` | Decoupled weight decay, bias correction | `torch.optim.AdamW` |
 | `function.py` | Cross-entropy, gradient clipping, warmup+cosine, top-p sampling | — |
 
